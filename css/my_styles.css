@@ -1,0 +1,9 @@
+.my_serif_text{ 
+    font-family: serif;
+}
+.my_special_color {
+    color: black !important;
+}
+.my_font_size { 
+    font-size: small !important;
+}
