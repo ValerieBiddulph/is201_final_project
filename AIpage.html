@@ -1,134 +1,280 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>2 Player Game</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🔥 Epic Snake</title>
   <style>
     body {
       margin: 0;
-      overflow: hidden;
-      background-color: #0f172a;
+      background-color:lightblue; /* Professional and clean-cut background */
+      color: black;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    /* Styling for the game headings */
+    h1 {
+      font-size: 2.5em;
+      margin: 5px 0;
+    }
+    h2 {
+      font-size: 1.5em;
+      margin: 5px 0 20px;
+      color: #555;
+    }
+    /* Updated scoreboard styling with white and black checkerboard border */
+    #score {
+      background-color: white;
+      color: black;
+      padding: 10px 20px;
+      font-size: 24px;
+      font-weight: bold;
+      text-shadow: none;
+      margin-bottom: 5px;
+      display: inline-block;
+      border: 5px solid;
+      border-image: repeating-linear-gradient(
+        45deg,
+        white,
+        white 5px,
+        black 5px,
+        black 10px
+      ) 1;
+      position: relative;
+      z-index: 1;
+    }
+    #sub {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 15px;
+      position: relative;
+      z-index: 1;
+    }
+    #restart {
+      display: none;
+      padding: 8px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 10px;
+      background-color: white;
+      color: black;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 15px;
+      position: relative;
+      z-index: 1;
     }
     canvas {
-      display: block;
       background-color: #1e293b;
+      border: 5px solid black;
+      position: relative;
+      z-index: 1;
     }
   </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
+  <h1>The Ultimate Snake Game</h1>
+  <h2>Complete with explosions and top speeds</h2>
+  <h4><a href="index.html" target="_blank">Resume</a> | <a href=from_scratch.html target="_blank"> Scratch Page</a> </h4>
+  <div id="score">Score: 0 | Top: 0</div>
+  <div id="sub">Press any arrow to start</div>
+  <canvas id="game" width="600" height="600"></canvas>
+  <button id="restart">Restart</button>
+
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const gridSize = 20;
+    const tileCount = canvas.width / gridSize;
+    const colors = ["#3b82f6", "#22c55e", "#eab308", "#f43f5e", "#a855f7", "#14b8a6", "#f97316"];
 
-    const groundY = canvas.height - 50;
+    let snake = [{ x: 10, y: 10 }];
+    let direction = { x: 0, y: 0 };
+    let nextDirection = { x: 0, y: 0 };
+    let food = getRandomFood();
+    let currentColor = randomColor();
+    let dead = false;
+    let fireParticles = [];
+    let started = false;
+    let moveTimer = 0;
+    let moveDelay = 8; // initial delay, lower delay = faster game
+    const minDelay = 4; // lower bound for delay (maximum speed)
 
-    class Player {
-      constructor(x, y, color, controls) {
-        this.x = x;
-        this.y = y;
-        this.vx = 0;
-        this.vy = 0;
-        this.color = color;
-        this.controls = controls;
-        this.radius = 30;
-      }
+    // Score variables
+    let currentScore = 0;
+    let highScore = parseInt(localStorage.getItem("epicSnakeHighScore")) || 0;
+    updateScoreboard();
 
-      update() {
-        this.x += this.vx;
-        this.y += this.vy;
-        if (this.y + this.radius > groundY) {
-          this.y = groundY - this.radius;
-          this.vy = 0;
-        } else {
-          this.vy += 0.8; // gravity
-        }
-      }
-
-      draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.fill();
-        ctx.closePath();
-      }
-    }
-
-    const player1 = new Player(canvas.width / 2 - 100, groundY - 60, "#3b82f6", {
-      left: "a",
-      right: "d",
-      up: "w",
-      down: "s"
-    });
-    const player2 = new Player(canvas.width / 2 + 100, groundY - 60, "#facc15", {
-      left: "ArrowLeft",
-      right: "ArrowRight",
-      up: "ArrowUp",
-      down: "ArrowDown"
+    const restartButton = document.getElementById("restart");
+    restartButton.addEventListener("click", () => {
+      resetGame();
+      updateScoreboard();
     });
 
-    let heldKeys = {};
-    document.addEventListener("keydown", (e) => heldKeys[e.key] = true);
-    document.addEventListener("keyup", (e) => heldKeys[e.key] = false);
+    function updateScoreboard() {
+      document.getElementById("score").textContent = "Score: " + currentScore + " | Top: " + highScore;
+    }
 
-    function handleInput(player) {
-      if (heldKeys[player.controls.left]) player.vx = -5;
-      else if (heldKeys[player.controls.right]) player.vx = 5;
-      else player.vx = 0;
+    function randomColor() {
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
 
-      if (heldKeys[player.controls.up] && player.y + player.radius >= groundY) {
-        player.vy = -15;
+    function getRandomFood() {
+      let food;
+      do {
+        food = {
+          x: Math.floor(Math.random() * tileCount),
+          y: Math.floor(Math.random() * tileCount),
+        };
+      } while (snake.some(segment => segment.x === food.x && segment.y === food.y));
+      return food;
+    }
+
+    function drawSnake() {
+      ctx.fillStyle = currentColor;
+      snake.forEach(seg => {
+        ctx.fillRect(seg.x * gridSize, seg.y * gridSize, gridSize - 2, gridSize - 2);
+      });
+    }
+
+    function drawFood() {
+      ctx.fillStyle = "#facc15";
+      ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+    }
+
+    function resetGame() {
+      // Update highScore based on food eaten (snake.length - 1)
+      if (currentScore > highScore) {
+        highScore = currentScore;
+        localStorage.setItem("epicSnakeHighScore", highScore);
+      }
+      // Reset core game values
+      currentScore = 0;
+      snake = [{ x: 10, y: 10 }];
+      direction = { x: 0, y: 0 };
+      nextDirection = { x: 0, y: 0 };
+      food = getRandomFood();
+      currentColor = randomColor();
+      fireParticles = [];
+      dead = false;
+      started = false;
+      moveDelay = 8; // Reset speed to initial delay
+      document.getElementById("sub").style.display = "block";
+      restartButton.style.display = "none";
+      updateScoreboard();
+    }
+
+    function spawnFire(x, y) {
+      for (let i = 0; i < 30; i++) {
+        fireParticles.push({
+          x: x * gridSize + gridSize / 2,
+          y: y * gridSize + gridSize / 2,
+          vx: (Math.random() - 0.5) * 4,
+          vy: (Math.random() - 1.5) * 4,
+          life: 60,
+          color: ["#facc15", "#f97316", "#ef4444"][Math.floor(Math.random() * 3)]
+        });
       }
     }
 
-    function drawLine(p1, p2) {
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.strokeStyle = "#94a3b8";
-      ctx.lineWidth = 4;
-      ctx.stroke();
+    function updateParticles() {
+      fireParticles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+      });
+      fireParticles = fireParticles.filter(p => p.life > 0);
     }
 
-    function checkWin() {
-      if (player1.y + player1.radius >= groundY + 1) {
-        alert("Player 2 wins!");
-        document.location.reload();
-      } else if (player2.y + player2.radius >= groundY + 1) {
-        alert("Player 1 wins!");
-        document.location.reload();
-      }
-    }
-
-    function drawGround() {
-      ctx.fillStyle = "#334155";
-      ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+    function drawParticles() {
+      fireParticles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 4, 4);
+      });
     }
 
     function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGround();
+      if (dead) {
+        updateParticles();
+        draw();
+        restartButton.style.display = "block";
+        requestAnimationFrame(gameLoop);
+        return;
+      }
 
-      handleInput(player1);
-      handleInput(player2);
+      if (!started) {
+        draw();
+        requestAnimationFrame(gameLoop);
+        return;
+      }
 
-      player1.update();
-      player2.update();
+      moveTimer++;
+      if (moveTimer < moveDelay) {
+        draw();
+        requestAnimationFrame(gameLoop);
+        return;
+      }
+      moveTimer = 0;
 
-      drawLine(player1, player2);
+      direction = nextDirection;
+      const head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
 
-      player1.draw();
-      player2.draw();
+      // Check for collisions with walls or self
+      if (
+        head.x < 0 || head.x >= tileCount ||
+        head.y < 0 || head.y >= tileCount ||
+        snake.some(seg => seg.x === head.x && seg.y === head.y)
+      ) {
+        dead = true;
+        spawnFire(snake[0].x, snake[0].y);
+        return requestAnimationFrame(gameLoop);
+      }
 
-      checkWin();
+      snake.unshift(head);
 
+      // Check if food is eaten
+      if (head.x === food.x && head.y === food.y) {
+        currentColor = randomColor();
+        food = getRandomFood();
+        // Increase score (each food increases the snake length)
+        currentScore = snake.length - 1;
+        // Speed up the game (reduce delay)
+        moveDelay = Math.max(minDelay, moveDelay - 0.5);
+        updateScoreboard();
+      } else {
+        snake.pop();
+      }
+
+      draw();
       requestAnimationFrame(gameLoop);
     }
 
-    gameLoop();
+    function draw() {
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawSnake();
+      drawFood();
+      if (dead) drawParticles();
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+        started = true;
+        document.getElementById("sub").style.display = "none";
+      }
+
+      if (e.key === "ArrowUp" && direction.y === 0) nextDirection = { x: 0, y: -1 };
+      if (e.key === "ArrowDown" && direction.y === 0) nextDirection = { x: 0, y: 1 };
+      if (e.key === "ArrowLeft" && direction.x === 0) nextDirection = { x: -1, y: 0 };
+      if (e.key === "ArrowRight" && direction.x === 0) nextDirection = { x: 1, y: 0 };
+    });
+
+    draw();
+    requestAnimationFrame(gameLoop);
   </script>
 </body>
 </html>

@@ -7,3 +7,17 @@
 .my_font_size { 
     font-size: small !important;
 }
+
+.my_background_color {
+    background-color: aquamarine;
+}
+
+.my_text_color {
+    color: aquamarine;
+}
+.my_coloring {
+    color: hsl(192, 67%, 39%) !important;
+}
+.backgroundish{
+    background-color:hsl(192 67 39) !important;
+}
